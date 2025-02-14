@@ -3,5 +3,10 @@
     "fname": "rpc_toggle_switch.js",
     "title": "RPC Toggle Switch",
     "description": "Listens to multiple inputs and triggers remote Shelly devices using RPC calls."
+  },
+  {
+    "fname": "rpc_shutter_switch.js",
+    "title": "RPC Shutter Switch",
+    "description": ""
   }
 ]
