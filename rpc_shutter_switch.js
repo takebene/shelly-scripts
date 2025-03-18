@@ -45,6 +45,11 @@ Shelly.addEventHandler(function (statusEvent) {
     (result.component === "input:1" && result.event === "single_push")
   ) {
     componentStatus(result);
+  } else if (
+    (result.component === "input:0" && result.event === "long_push") ||
+    (result.component === "input:1" && result.event === "long_push")
+  ) {
+    remoteShelly.call("Cover.GoToPosition", { id: 0, pos: 50 }, nullCallback());
   }
 });
 
