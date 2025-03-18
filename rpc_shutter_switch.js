@@ -31,17 +31,8 @@ let RemoteShelly = {
 let remoteShelly = RemoteShelly.getInstance(CONFIG.ip);
 
 function componentStatus(statusEvent) {
-  remoteShelly.call(
-    "Switch.GetStatus",
-    { id: 0 },
-    function (result, error_code, error_message, ud) {
-      print(
-        "get.status result: " + JSON.stringify(result),
-        error_code,
-        error_message
-      );
-    }
-  );
+  console.log("componentStatus: " + JSON.stringify(statusEvent));
+  remoteShelly.call("Cover.GetStatus", { id: 0 }, doExcecute());
 }
 
 Shelly.addStatusHandler(function (statusEvent) {
@@ -49,3 +40,28 @@ Shelly.addStatusHandler(function (statusEvent) {
     componentStatus(statusEvent);
   }
 });
+function doExcecute() {
+  return function (result, error_code, error_message, ud) {
+    print(
+      "get.status result: " + JSON.stringify(result),
+      error_code,
+      error_message
+    );
+
+    if (result.state == "open") {
+      remoteShelly.call("Cover.Close", { id: 0 }, nullCallback());
+    } else if (result.state == "closed") {
+      remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
+    } else if (result.state == "stopped") {
+      result.last_direction == "open"
+        ? remoteShelly.call("Cover.Close", { id: 0 }, nullCallback())
+        : remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
+    } else {
+      remoteShelly.call("Cover.Stop", { id: 0 }, nullCallback());
+    }
+  };
+}
+
+function nullCallback() {
+  return function () {};
+}
