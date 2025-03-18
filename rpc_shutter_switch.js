@@ -2,6 +2,7 @@ let CONFIG = {
   ip: "192.XXX.XXX.XXX",
 };
 
+
 let RemoteShelly = {
   _cb: function (result, error_code, error_message, callback) {
     let rpcResult = JSON.parse(result.body);
@@ -32,32 +33,48 @@ let remoteShelly = RemoteShelly.getInstance(CONFIG.ip);
 
 function componentStatus(statusEvent) {
   console.log("componentStatus: " + JSON.stringify(statusEvent));
-  remoteShelly.call("Cover.GetStatus", { id: 0 }, doExcecute());
+
+  let action = statusEvent.component === "input:0" ? "open" : "close";
+  remoteShelly.call("Cover.GetStatus", { id: 0 }, doExcecute(action));
 }
 
-Shelly.addStatusHandler(function (statusEvent) {
-  if (statusEvent.component === "input:0" && statusEvent.delta.state == true) {
-    componentStatus(statusEvent);
+Shelly.addEventHandler(function (statusEvent) {
+  let result = statusEvent.info;
+  if (
+    (result.component === "input:0" && result.event === "single_push") ||
+    (result.component === "input:1" && result.event === "single_push")
+  ) {
+    componentStatus(result);
   }
 });
-function doExcecute() {
+
+function doExcecute(action) {
   return function (result, error_code, error_message, ud) {
+    print("Current action: " + action)
     print(
       "get.status result: " + JSON.stringify(result),
       error_code,
       error_message
     );
 
-    if (result.state == "open") {
-      remoteShelly.call("Cover.Close", { id: 0 }, nullCallback());
-    } else if (result.state == "closed") {
-      remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
-    } else if (result.state == "stopped") {
-      result.last_direction == "open"
-        ? remoteShelly.call("Cover.Close", { id: 0 }, nullCallback())
-        : remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
-    } else {
+    if (result.state === "opening" || result.state === "closing") {
       remoteShelly.call("Cover.Stop", { id: 0 }, nullCallback());
+    } else if (result.state === "stopped") {
+      if (action === "close") {
+        remoteShelly.call("Cover.Close", { id: 0 }, nullCallback());
+      } else if (action === "open") {
+        remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
+      } else {
+        remoteShelly.call("Cover.Stop", { id: 0 }, nullCallback());
+      }
+    } else {
+      if (action === "open" && result.state !== "open") {
+        remoteShelly.call("Cover.Open", { id: 0 }, nullCallback());
+      } else if (action === "close" && result.state !== "closed") {
+        remoteShelly.call("Cover.Close", { id: 0 }, nullCallback());
+      } else {
+        remoteShelly.call("Cover.Stop", { id: 0 }, nullCallback());
+      }
     }
   };
 }
