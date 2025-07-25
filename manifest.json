@@ -7,6 +7,6 @@
   {
     "fname": "rpc_shutter_switch.js",
     "title": "RPC Shutter Switch",
-    "description": ""
+    "description": "Controls remote Shelly shutter/cover devices via RPC calls. Handles open/close actions and positioning."
   }
 ]

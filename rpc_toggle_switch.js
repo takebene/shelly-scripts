@@ -32,25 +32,46 @@ let CONFIG = {
   inputs: [
     {
       input: 0, // Shelly Input
-      ip: "192.XXX.XXX.XXX", // Remote Shelly
+      ip: "192.168.1.100", // Remote Shelly Device 1
     },
     {
-      input: 0, // Shelly Input
-      ip: "192.XXX.XXX.XXX", // Remote Shelly
+      input: 1, // Shelly Input
+      ip: "192.168.1.101", // Remote Shelly Device 2
     },
   ],
 };
 
+/**
+ * RemoteShelly object for making RPC calls to remote Shelly devices
+ */
 let RemoteShelly = {
+  /**
+   * Internal callback handler for HTTP responses
+   * @param {Object} result - HTTP response result
+   * @param {number} error_code - Error code if any
+   * @param {string} error_message - Error message if any  
+   * @param {Function} callback - User callback function
+   */
   _cb: function (result, error_code, error_message, callback) {
     let rpcResult = JSON.parse(result.body);
     let rpcCode = result.code;
     let rpcMessage = result.message;
     callback(rpcResult, rpcCode, rpcMessage);
   },
+  /**
+   * Compose RPC endpoint URL
+   * @param {string} method - RPC method name
+   * @returns {string} Complete endpoint URL
+   */
   composeEndpoint: function (method) {
     return "http://" + this.address + "/rpc/" + method;
   },
+  /**
+   * Make an RPC call to the remote device
+   * @param {string} rpc - RPC method name
+   * @param {Object} data - Data to send with the request
+   * @param {Function} callback - Callback function to handle response
+   */
   call: function (rpc, data, callback) {
     let postData = {
       url: this.composeEndpoint(rpc),
@@ -58,6 +79,11 @@ let RemoteShelly = {
     };
     Shelly.call("HTTP.POST", postData, RemoteShelly._cb, callback);
   },
+  /**
+   * Create a new RemoteShelly instance for a specific device
+   * @param {string} address - IP address of the remote device
+   * @returns {Object} RemoteShelly instance
+   */
   getInstance: function (address) {
     let rs = Object.create(this);
     rs.address = address;
