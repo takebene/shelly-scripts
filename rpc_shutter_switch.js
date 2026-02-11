@@ -40,16 +40,22 @@ Shelly.addEventHandler(function (statusEvent) {
     result.component === "input:0" || result.component === "input:2"
       ? "open"
       : "close";
-  let targetShelly =
-    result.component === "input:0" || result.component === "input:1"
-      ? remoteShelly1
-      : remoteShelly2;
+
+  let targetShelly;
+
+  if (result.component === "input:0" || result.component === "input:1") {
+    targetShelly = remoteShelly1;
+  } else if (result.component === "input:2" || result.component === "input:3") {
+    targetShelly = remoteShelly2;
+  } else {
+    return;
+  }
 
   if (result.event === "single_push") {
     targetShelly.call(
       "Cover.GetStatus",
       { id: 0 },
-      doExcecute(action, targetShelly)
+      doExcecute(action, targetShelly),
     );
   } else if (result.event === "long_push") {
     //targetShelly.call('Cover.GoToPosition', { id: 0, pos: 50 }, nullCallback());
@@ -64,7 +70,7 @@ function doExcecute(action, targetShelly) {
     console.log(
       "Cover status result: " + JSON.stringify(result),
       error_code,
-      error_message
+      error_message,
     );
 
     if (result.state === "opening" || result.state === "closing") {
