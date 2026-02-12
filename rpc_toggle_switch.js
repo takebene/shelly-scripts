@@ -1,42 +1,64 @@
 /**
  * This script handles multiple Shelly inputs and triggers remote Shelly devices accordingly.
  * For each input specified in the CONFIG array, a corresponding status handler is registered.
- * When a configured input is triggered, the script toggles the respective remote Shelly device's switch.
+ * When a configured source input is triggered with the specified event type,
+ * the script toggles all configured target switches on remote Shelly devices.
  *
  * CONFIG:
  * - inputs: An array of input configurations, each containing:
- *   - input: The local Shelly input number (e.g., 0 for input:0).
- *   - ip: The IP address of the remote Shelly device to control.
+ *   - sourceInput: The local Shelly input number (e.g., 0-3 for Shelly i4).
+ *   - eventType: The event type to listen for ("single_push", "long_push", "double_push", etc.).
+ *   - targets: An array of target configurations, each containing:
+ *     - targetIp: The IP address of the remote Shelly device.
+ *     - targetInput: The switch ID on the remote Shelly device to toggle.
  *
  * Example usage:
- * - When input:0 on the local Shelly changes to true, the script sends a toggle command
- *   to the remote Shelly device defined by the corresponding IP address.
+ * - When input:0 on the local Shelly i4 receives a "single_push" event,
+ *   the script sends Switch.Toggle commands to all configured target devices.
+ * - A single sourceInput can control multiple remote Shelly devices.
  *
  * Components:
- * - CONFIG: Contains the input-to-remote device mapping.
+ * - CONFIG: Contains the sourceInput-to-targets mapping with event types.
  * - RemoteShelly: A helper object for making RPC calls to remote Shelly devices.
- * - Shelly.addStatusHandler: Registers event handlers for each configured input.
+ * - Shelly.addStatusHandler: Registers event handlers for input events.
  *
  * Key Functionality:
- * - Each input in CONFIG.inputs gets its own status handler.
- * - When the input matches the specified input number and state becomes true, a call to
- *   "switch.toggle" is sent to the remote Shelly device.
+ * - Each sourceInput and eventType combination is monitored.
+ * - When matching event occurs, calls "Switch.Toggle" for all targets.
+ * - Supports multiple targets per sourceInput for synchronized control.
  *
  * Notes:
  * - This script uses Shelly's built-in HTTP.POST method.
+ * - Calls http://<targetIp>/rpc/Switch.Toggle?id=<targetInput> for each target.
  * - Ensure that the correct IP addresses and input numbers are specified in CONFIG.
- * - The script is designed to scale; simply add more entries to CONFIG.inputs to handle more devices.
+ * - The script is designed to scale; simply add more entries to CONFIG.inputs.
  */
 
 let CONFIG = {
   inputs: [
     {
-      input: 0, // Shelly Input
-      ip: "192.XXX.XXX.XXX", // Remote Shelly
+      sourceInput: 0, // Local Shelly input (e.g., i4 input 0-3)
+      eventType: "single_push", // Event type: "single_push", "long_push", "double_push"
+      targets: [
+        {
+          targetIp: "192.XXX.XXX.XXX", // Remote Shelly IP
+          targetInput: 0, // Remote Switch ID
+        },
+        {
+          targetIp: "192.XXX.XXX.XXX", // Remote Shelly IP
+          targetInput: 0, // Remote Switch ID
+        },
+      ],
     },
     {
-      input: 0, // Shelly Input
-      ip: "192.XXX.XXX.XXX", // Remote Shelly
+      sourceInput: 1, // Local Shelly input
+      eventType: "long_push", // Event type
+      targets: [
+        {
+          targetIp: "192.XXX.XXX.XXX", // Remote Shelly IP
+          targetInput: 1, // Remote Switch ID
+        },
+      ],
     },
   ],
 };
@@ -69,25 +91,47 @@ let RemoteShelly = {
 Shelly.addStatusHandler(function (statusEvent) {
   console.log("statusEvent: " + JSON.stringify(statusEvent));
 
-  CONFIG.inputs.forEach(function (inputConfig) {
-    let remoteShelly = RemoteShelly.getInstance(inputConfig.ip);
-    let input = "input:" + inputConfig.input;
+  // Check if this is an input event with event info
+  if (!statusEvent.info || !statusEvent.info.event) {
+    return;
+  }
 
-    if (statusEvent.component === input && statusEvent.delta.state == true) {
-      remoteShelly.call(
-        "switch.toggle",
-        { id: 0 },
-        function (result, error_code, error_message, ud) {
-          console.log(
-            "switch.toggle result (" +
-              inputConfig.ip +
-              "): " +
-              JSON.stringify(result),
-            error_code,
-            error_message
-          );
-        }
+  CONFIG.inputs.forEach(function (inputConfig) {
+    let sourceInputComponent = "input:" + inputConfig.sourceInput;
+
+    // Check if the event matches our configuration
+    if (
+      statusEvent.component === sourceInputComponent &&
+      statusEvent.info.event === inputConfig.eventType
+    ) {
+      console.log(
+        "Matched: sourceInput=" +
+          inputConfig.sourceInput +
+          ", eventType=" +
+          inputConfig.eventType,
       );
+
+      // Toggle all configured targets
+      inputConfig.targets.forEach(function (target) {
+        let remoteShelly = RemoteShelly.getInstance(target.targetIp);
+
+        remoteShelly.call(
+          "Switch.Toggle",
+          { id: target.targetInput },
+          function (result, error_code, error_message, ud) {
+            console.log(
+              "Switch.Toggle result (" +
+                target.targetIp +
+                " switch:" +
+                target.targetInput +
+                "): " +
+                JSON.stringify(result),
+              error_code,
+              error_message,
+            );
+          },
+        );
+      });
     }
   });
 });
