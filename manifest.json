@@ -13,5 +13,10 @@
     "fname": "rpc_shutter_switch_single.js",
     "title": "RPC Shutter Switch Single",
     "description": "Simplified version with 2 inputs and 1 IP address. Input:0 opens, Input:1 closes the remote shutter."
+  },
+  {
+    "fname": "i4_apply_base_config.js",
+    "title": "i4 Apply Base Config",
+    "description": "Sets input:0..3 on Shelly i4 to type button."
   }
 ]
