@@ -1,87 +1,95 @@
 let CONFIG = {
-  ip: "192.XXX.XXX.XXX",
+  ips: ["XXX.XXX.XXX.XXX"],
 };
 
 let RemoteShelly = {
   _cb: function (result, error_code, error_message, callback) {
+    if (error_code !== 0) {
+      print("HTTP error: " + error_code + " - " + error_message);
+      return;
+    }
+
     let rpcResult = JSON.parse(result.body);
-    let rpcCode = result.code;
-    let rpcMessage = result.message;
-    callback(rpcResult, rpcCode, rpcMessage);
+    callback(rpcResult, result.code, result.message);
   },
+
   composeEndpoint: function (method) {
     return "http://" + this.address + "/rpc/" + method;
   },
+
   call: function (rpc, data, callback) {
     let postData = {
       url: this.composeEndpoint(rpc),
       body: data,
     };
+
     Shelly.call("HTTP.POST", postData, RemoteShelly._cb, callback);
   },
+
   getInstance: function (address) {
     let rs = Object.create(this);
-    // remove static method
     rs.getInstance = null;
     rs.address = address;
     return rs;
   },
 };
 
-let remoteShelly = RemoteShelly.getInstance(CONFIG.ip);
+let remoteShellys = CONFIG.ips.map(function (ip) {
+  return RemoteShelly.getInstance(ip);
+});
 
 Shelly.addEventHandler(function (statusEvent) {
   print("Status Event: " + JSON.stringify(statusEvent));
 
   let result = statusEvent.info;
 
-  // Input 0 = open, Input 1 = close
-  let action = result.component === "input:0" ? "open" : "close";
+  if (!result) return;
 
-  // Only handle input:0 and input:1
+  // Nur input:0 und input:1 behandeln
   if (result.component !== "input:0" && result.component !== "input:1") {
     return;
   }
 
+  // input:0 = öffnen, input:1 = schließen
+  let action = result.component === "input:0" ? "open" : "close";
+
   if (result.event === "single_push") {
-    remoteShelly.call(
-      "Cover.GetStatus",
-      { id: 0 },
-      doExcecute(action, remoteShelly),
-    );
+    remoteShellys.forEach(function (remoteShelly) {
+      remoteShelly.call(
+        "Cover.GetStatus",
+        { id: 0 },
+        doExecute(action, remoteShelly),
+      );
+    });
   } else if (result.event === "long_push") {
-    //remoteShelly.call('Cover.GoToPosition', { id: 0, pos: 50 }, nullCallback());
-    print("long_push");
+    remoteShellys.forEach(function (remoteShelly) {
+      remoteShelly.call(
+        "Cover.GoToPosition",
+        { id: 0, pos: 50 },
+        nullCallback(),
+      );
+    });
   }
 });
 
-function doExcecute(action, targetShelly) {
-  return function (result, error_code, error_message, ud) {
-    console.log("Current action: " + action);
-    console.log("Current targetShelly: " + targetShelly);
-    console.log(
-      "Cover status result: " + JSON.stringify(result),
-      error_code,
-      error_message,
-    );
+function doExecute(action, targetShelly) {
+  return function (result, error_code, error_message) {
+    print("Target Shelly: " + targetShelly.address);
+    print("Action: " + action);
+    print("Cover status: " + JSON.stringify(result));
 
     if (result.state === "opening" || result.state === "closing") {
       targetShelly.call("Cover.Stop", { id: 0 }, nullCallback());
-    } else if (result.state === "stopped") {
-      if (action === "close") {
-        targetShelly.call("Cover.Close", { id: 0 }, nullCallback());
-      } else if (action === "open") {
+      return;
+    }
+
+    if (action === "open") {
+      if (result.state !== "open") {
         targetShelly.call("Cover.Open", { id: 0 }, nullCallback());
-      } else {
-        targetShelly.call("Cover.Stop", { id: 0 }, nullCallback());
       }
-    } else {
-      if (action === "open" && result.state !== "open") {
-        targetShelly.call("Cover.Open", { id: 0 }, nullCallback());
-      } else if (action === "close" && result.state !== "closed") {
+    } else if (action === "close") {
+      if (result.state !== "closed") {
         targetShelly.call("Cover.Close", { id: 0 }, nullCallback());
-      } else {
-        targetShelly.call("Cover.Stop", { id: 0 }, nullCallback());
       }
     }
   };
